@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<script type = "text/javascript">
+			var todo = {};
+
+			todo.addItem = function (content) {
+				todo.setup(content);
+				todo.save();
+			};
+			todo.setup = function (content) {
+				var listItem = document.createElement("li");
+				var newItem = document.createElement("span");
+				newItem.setAttribute("contenteditable", "true");
+				if (content) {
+					newItem.innerHTML = content;
+				} else {
+					newItem.innerHTML = "New Item";
+				}
+				listItem.appendChild(newItem);
+				todo.addRemoveButton(listItem);
+				document.getElementById("list").appendChild(listItem);
+			};
+			todo.remove = function (element) {
+				var list = document.getElementById("list");
+				list.removeChild(element.parentNode);
+				todo.save();
+			};
+			todo.log = function () {
+				console.log("changed");
+			};
+			todo.compare = function (value1, value2) {
+				return value1 == value2;
+			};
+			todo.watcher = function (element, handler) {
+				element.setAttribute("data-content", element.getElementsByTagName("span")[0].innerHTML);
+				element.addEventListener("keyup", function () {
+					if (!todo.compare(element.getAttribute("data-content"), element.getElementsByTagName("span")[0].innerHTML)) {
+						handler();
+					}
+				});
+			};
+			todo.today = new Date();
+			todo.id = "UserXyz" + "-" + 
+				todo.today.getFullYear() + "-" + 
+				(todo.today.getMonth() > 8 ? (todo.today.getMonth()+1) : "0" + (todo.today.getMonth()+1)) + "-" + 
+				todo.today.getDate();
+			todo.document = {};
+			todo.async = {};
+			todo.async.perform = function (method, url, data, callback) {
+				var xhr = new XMLHttpRequest();
+				xhr.open(method, url);
+				xhr.setRequestHeader('Content-Type', 'application/json');
+				xhr.responseType = "json";
+				xhr.onreadystatechange = function () {
+					if (xhr.readyState == 4) {
+						if (xhr.status >= 200 && xhr.status < 300) {
+							callback(xhr.response);
+						}
+					}
+				};
+				if (method === "GET") {
+					xhr.send();
+				} else {
+					xhr.send(data);
+				}
+			}
+			todo.save = function () {
+				//var xhr = new XMLHttpRequest();
+				//xhr.open("PUT", "http://127.0.0.1:5984/todo/" + todo.id);
+				//xhr.setRequestHeader('Content-Type', "application/json");
+				var list = {};
+				list.content = todo.getItems();
+				list.date = Date.now();
+				list.type = "items";
+				list.user = "user1";
+				if (todo.document._rev) {
+					list._rev = todo.document._rev;
+				};
+				var func = function () {
+					todo.async.perform("PUT", "http://127.0.0.1:5984/todo/" + todo.id, JSON.stringify(list), function (response) {
+						list._rev = response.rev;
+						todo.document = list;
+					});
+				};
+				utils.saver.perform(func);
+				//xhr.send(JSON.stringify(list));
+			};
+			todo.getItems = function () {
+				var list = document.getElementById("list");
+				var items = [];
+				var listElements = list.getElementsByTagName("li");
+				for (var i = 0; i < listElements.length; i++) {
+					items.push(listElements[i].getElementsByTagName("span")[0].innerHTML);
+				};
+				return items;
+			};
+			todo.addRemoveButton = function (element) {
+				var removeButton = document.createElement("button");
+				removeButton.innerHTML = "-";
+				removeButton.setAttribute("onclick", "todo.remove(this)");
+				element.appendChild(removeButton);
+				todo.watcher(element, todo.save);
+			};
+			var utils = {};
+			utils.saver = {};
+			utils.saver.timeout = null;
+			utils.saver.maxDelay = 2000;
+			utils.saver.lastTry = Date.now();
+			utils.saver.perform = function (callback) {
+				if (utils.saver.timeout != null) {
+					clearTimeout(utils.saver.timeout);
+					utils.saver.timeout = null;
+				} else {
+					utils.saver.lastTry = Date.now();
+				}
+				if (Date.now() - utils.saver.lastTry > utils.saver.maxDelay) {
+					callback();
+				} else {
+					utils.saver.timeout = setTimeout(function () {
+						utils.saver.timeout = null;
+						callback();
+					}, 300);
+				}
+			};
+		;</script>
+	</head>
+	<body>
+		<ul id = "list">
+			<!--li> <span contenteditable="true"> Item 1</span></li-->
+		</ul>
+		<button onclick = "todo.addItem()">+</button>
+
+		<script type = "text/javascript" name = "on-startup">
+			(function getDocument () {
+				var xhr = new XMLHttpRequest();
+				xhr.responseType = "json";
+				xhr.onreadystatechange = function () {
+					if (xhr.readyState == 4) {
+						if (xhr.status == 200) {
+							todo.document = xhr.response;
+							todo.document.content.forEach(function (item) {
+								todo.setup(item);
+							});
+						} else {
+							;
+						}
+					}
+				};
+				xhr.open("GET", "http://127.0.0.1:5984/todo/" + todo.id);
+				xhr.send();
+			})();
+			(function addRemoveButton () {
+				var list = document.getElementById("list");
+				var listElements = list.getElementsByTagName("li");
+				for (var i = 0; i < listElements.length; i++) {
+					todo.addRemoveButton(listElements[i]);
+				};
+			})();
+		</script>
+	</body>
+</html>

@@ -1,0 +1,16 @@
+{
+  "_id": "_design/todo-html",
+  "_rev": "9-41cf7a306bfadae3743b277eef69bb0a",
+  "views": {
+    "todo-html": {
+      "map": "function (doc) {\n  emit(doc._id, 1);\n}"
+    },
+    "items": {
+      "map": "function (doc) { emit([doc.user, doc.date], doc.content);}"
+    }
+  },
+  "shows": {
+    "index": "function (doc, req) { return doc.content; }"
+  },
+  "language": "javascript"
+}
